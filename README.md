@@ -1,95 +1,131 @@
-# 小黑盒签到脚本
+# heybox_sign
 
-## 环境要求
+`heybox_sign.js` 是一个用于小黑盒账号每日任务的 Node.js 脚本。脚本通过 `heybox_ck` 环境变量读取账号 Cookie，自动获取任务列表，并尝试完成签到和已支持的每日分享任务。
 
-- nodejs
-- 已准备好有效的 `heybox_ck`
+## 脚本功能
 
-## 快速开始
+- 自动读取一个或多个小黑盒账号。
+- 从 `pkey` 中解析 `heybox_id`。
+- 根据 `pkey` 自动生成请求所需的 `imei`。
+- 通过外部 hkey 服务生成小黑盒 App 接口签名参数。
+- 拉取每日任务列表。
+- 自动执行普通签到。
+- 自动完成以下每日分享任务：
+  - 分享任意帖子到社交平台
+  - 分享游戏详情到社交平台
+  - 分享游戏评价到社交平台
+- 自动跳过已完成任务。
+- 对未支持任务输出提示。
+- 输出当前账号 H 币数量。
+- 根据所有账号任务完成情况返回退出码。
 
-直接运行：
+## 运行环境
 
-```bash
-python heybox_sign.js
-```
+- Node.js
+- npm
+- 依赖包：`got`
 
-脚本启动后会先输出当前版本，例如：
-
-```text
-当前版本：1.3.382 build=1075
-```
-
-然后再按账号顺序执行签到。
-
-## 本地运行
-
-### 单账号
-
-直接填写从任意 `api.xiaoheihe.cn` 请求中复制出来的**整段 Cookie**。
-
-示例：
+安装依赖：
 
 ```bash
-heybox_ck='pkey=xxx; x_xhh_tokenid=xxx;'
-python heybox_sign.js
+npm install
 ```
 
-### 多账号
+如果只单独安装依赖：
 
-本地命令行场景下，推荐一行一个账号。
-
-示例：
-
-```text
-pkey=aaa; x_xhh_tokenid=aaa;
-pkey=bbb; x_xhh_tokenid=bbb;
+```bash
+npm install got@^11.8.6
 ```
 
-## 青龙面板
+## 环境变量
 
-### 1. 准备脚本
-
-你可以把 `heybox_sign.js` 放进自己的仓库，或者直接放到青龙的脚本目录中。
-
-### 2. 新建环境变量
-
-在青龙面板环境变量中新增：
-
-- 名称：`heybox_ck`
-
-单账号时，新建 1 个 `heybox_ck` 即可，值直接填整段 Cookie。
-
-多账号时，直接新建多个同名 `heybox_ck` 环境变量即可，每个变量填 1 个账号的整段 Cookie。
-
-示例：
+脚本只需要配置一个环境变量：
 
 ```text
-heybox_ck = pkey=aaa; x_xhh_tokenid=aaa;
-heybox_ck = pkey=bbb; x_xhh_tokenid=bbb;
-heybox_ck = pkey=ccc; x_xhh_tokenid=ccc;
+heybox_ck
 ```
 
-### 3. 定时规则
-
-定时规则可以自行设置，常见示例：
+值需要包含：
 
 ```text
-5 9 * * *
+pkey=xxx;x_xhh_tokenid=xxx;
 ```
 
-表示每天 9:05 执行一次。
-
-## 运行输出示例
+多账号支持两种分隔方式：
 
 ```text
-当前版本：1.3.382 build=1075
+pkey=账号1;x_xhh_tokenid=账号1;
+pkey=账号2;x_xhh_tokenid=账号2;
+```
+
+或：
+
+```text
+pkey=账号1;x_xhh_tokenid=账号1;&pkey=账号2;x_xhh_tokenid=账号2;
+```
+
+青龙面板：
+
+```bash
+node heybox_sign.js
+```
+
+在青龙环境变量中添加：
+
+```text
+名称：heybox_ck
+值：pkey=xxx;x_xhh_tokenid=xxx;
+```
+
+## 已支持任务
+
+| 任务 | 处理方式 |
+| --- | --- |
+| 签到 | 请求 `/task/sign_v3/sign`，再请求 `/task/sign_v3/get_sign_state` 确认奖励 |
+| 分享任意帖子到社交平台 | 拉取帖子流，模拟浏览时长，上报分享事件 |
+| 分享游戏详情到社交平台 | 拉取推荐游戏，发送分享事件 |
+| 分享游戏评价到社交平台 | 拉取推荐游戏和评论，发送分享事件 |
+
+## 输出说明
+
+常见输出示例：
+
+```text
+当前版本: 1.3.xxx build=xxxx
 
 ========== 账号1 ==========
-账号=xxx 黑盒ID=xxx IMEI=cfdae588b08808cf 设备=HBP-AL00
-签到结果: 成功
-本次获得H币: 5
+账号=昵称 黑盒ID=123456 IMEI=xxxxxxxxxxxxxxxx
+签到: 已完成 (+20经验 +20H币 +1盒电)
+分享任意帖子到社交平台: 已完成
 当前总H币: 123
-连续签到: 7天
 
 完成: 1/1
 ```
+
+退出码：
+
+- `0`：所有账号核心任务均完成。
+- `1`：存在账号任务未完成、初始化失败或脚本异常。
+
+## 常见问题
+
+### 初始化失败：缺少环境变量 heybox_ck
+
+没有配置 `heybox_ck`，或当前运行环境没有读取到该变量。
+
+### 无法从 pkey 解析 heybox_id
+
+`pkey` 不完整、过期或格式不正确。重新抓取小黑盒 Cookie。
+
+### hkey 接口失败
+
+外部 hkey 服务不可用、网络异常，或接口返回参数异常。稍后重试，或检查网络环境。
+
+### 任务执行后仍显示未完成
+
+可能原因：
+
+- 接口延迟结算。
+- Cookie 已失效。
+- 小黑盒任务规则变更。
+- 当前任务不在脚本支持范围内。
