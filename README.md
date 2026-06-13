@@ -67,7 +67,7 @@ pkey=账号1;x_xhh_tokenid=账号1;&pkey=账号2;x_xhh_tokenid=账号2;
 青龙面板：
 
 ```bash
-node heybox_sign.js
+task heybox_sign.js
 ```
 
 在青龙环境变量中添加：
