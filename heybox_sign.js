@@ -1,4 +1,4 @@
-﻿const crypto = require("crypto");
+const crypto = require("crypto");
 const { URLSearchParams } = require("url");
 const got = require("got");
 
@@ -166,10 +166,6 @@ function nonce(len = 32) {
   return out;
 }
 
-function rndTag() {
-  return `${new Date().getHours()}:${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
-}
-
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -259,7 +255,6 @@ function buildSignedQueryObject(account, runtime, hkey, ts, extraQuery = {}) {
     device_info: account.deviceInfo,
     nonce: nonce(),
     hkey,
-    _rnd: rndTag(),
     os_type: CLIENT_PROFILE.os_type,
     x_os_type: CLIENT_PROFILE.x_os_type,
     x_client_type: CLIENT_PROFILE.x_client_type,
