@@ -1,6 +1,6 @@
-# heybox_sign
+# heybox
 
-`heybox_sign.js` 是一个用于小黑盒账号每日任务的 Node.js 脚本。脚本通过 `heybox_ck` 环境变量读取账号 Cookie，自动获取任务列表，并尝试完成签到和已支持的每日分享任务。
+用于小黑盒的 Node.js 脚本。脚本通过 `heybox_ck` 环境变量读取账号 Cookie，自动获取任务列表
 
 ## 脚本功能
 
