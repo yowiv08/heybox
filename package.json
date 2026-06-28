@@ -1,0 +1,15 @@
+{
+  "name": "heybox_scripts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "heybox_sign": "node heybox_sign.js",
+    "heybox_claim": "node heybox_claim.js",
+    "heybox_rush": "node heybox_rush.js",
+    "heybox_roll": "node heybox_roll.js"
+  },
+  "dependencies": {
+    "got": "^11.8.6"
+  }
+}
