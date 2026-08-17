@@ -10,9 +10,17 @@ const {
   DATA_NAME,
   HeyboxAccount,
   HeyboxAppClient,
+  HeyboxWebClient,
   OK_STATE,
   PATH_DATA_REPORT,
   sendShareEvents,
+  DEFAULT_POST_TITLE,
+  DEFAULT_POST_CONTENT,
+  DEFAULT_REVIEW_CONTENT,
+  fetchGameTopicId,
+  postTopic,
+  postGameReview,
+  deletePost,
 } = require("./src/heybox");
 
 exports.name = "小黑盒.每日任务";
@@ -268,12 +276,6 @@ async function executeShareGameComment(task, client, fetchSnapshotFn) {
 }
 
 // ========== time_limit 任务：发布内容 ==========
-const POST_TITLE = "前面忘了中间忘了后面也忘了";
-const POST_CONTENT = "孩子很爱用，很好吃，会复购";
-
-const PATH_BBS_POST = "/bbs/app/api/link/post";
-const PATH_BBS_DELETE = "/bbs/app/link/delete";
-
 async function executeTimeLimitTask(task, client, fetchSnapshotFn) {
   // topic_id 在 maxjia 字段中，格式: heybox://{URL编码的JSON}
   let topicId = null;
@@ -291,24 +293,7 @@ async function executeTimeLimitTask(task, client, fetchSnapshotFn) {
     return { ok: false, unsupported: true, message: `${task.title} 缺少 topic_id` };
   }
 
-  const text = JSON.stringify([{ checked: false, text: POST_CONTENT, type: "text" }]);
-
-  // 使用 postJson 发送明文 form-urlencoded 数据
-  const postData = {
-    draft: "0",
-    topic_ids: String(topicId),
-    link_tag: "27",
-    text: text,
-    title: POST_TITLE,
-    desc: POST_CONTENT,
-  };
-
-  const resp = await client.postJson(
-    PATH_BBS_POST,
-    {},
-    postData,
-    { baseUrl: API_BASE },
-  );
+  const resp = await postTopic(client, topicId, DEFAULT_POST_TITLE, DEFAULT_POST_CONTENT);
 
   if (resp.status === OK_STATE && resp.result && resp.result.link_id) {
     const linkId = resp.result.link_id;
@@ -319,7 +304,7 @@ async function executeTimeLimitTask(task, client, fetchSnapshotFn) {
 
     // 删除帖子
     tools.log(`正在删除帖子 ${linkId}...`);
-    const delResp = await client.postJson(PATH_BBS_DELETE, {}, { link_id: String(linkId) }, { baseUrl: API_BASE });
+    const delResp = await deletePost(client, linkId);
     if (delResp.status === OK_STATE) {
       tools.log(`帖子已删除`);
     } else {
@@ -338,19 +323,75 @@ async function executeTimeLimitTask(task, client, fetchSnapshotFn) {
   return { ok: false, message: `发帖失败: ${resp.msg || resp.status}` };
 }
 
+// ========== time_limit 任务：发表游戏评价 ==========
+async function executeGameReviewTask(task, client, fetchSnapshotFn, account) {
+  const parsed = parseMaxjia(task.maxjia);
+  const appId = parsed?.app_id;
+
+  if (!appId) {
+    return { ok: false, unsupported: true, message: `${task.title} 缺少 app_id` };
+  }
+
+  // 通过游戏评论获取 topic_id
+  const topicId = await fetchGameTopicId(client, appId);
+  if (!topicId) {
+    return { ok: false, message: `${task.title} 无法获取游戏 topic_id` };
+  }
+
+  // 游戏评价需要使用 web client + link_tag=3 + appid(不带下划线) + score
+  const webClient = new HeyboxWebClient(account);
+  const resp = await postGameReview(webClient, appId, topicId, 5, DEFAULT_REVIEW_CONTENT);
+
+  if (resp.status === OK_STATE && resp.link_id) {
+    const linkId = resp.link_id;
+    tools.log(`游戏评价发帖成功: link_id=${linkId}`);
+
+    // 等待任务结算
+    for (let i = 0; i < 7; i++) {
+      await tools.sleep(2000);
+      const snapshot = await fetchSnapshotFn();
+      const after = findTaskByKey(snapshot, taskKey(task));
+      if (after && after.state === FINISH_STATE) {
+        tools.log(`任务已结算，正在删除帖子 ${linkId}...`);
+        const delResp = await deletePost(client, linkId);
+        if (delResp.status === OK_STATE) {
+          tools.log(`帖子已删除`);
+        } else {
+          tools.log(`删除失败: ${delResp.msg || "未知错误"}`);
+        }
+        return { ok: true, message: `${task.title} 完成`, snapshot };
+      }
+    }
+
+    // 任务未结算，删除帖子
+    tools.log(`等待超时，正在删除帖子 ${linkId}...`);
+    const delResp = await deletePost(client, linkId);
+    if (delResp.status === OK_STATE) {
+      tools.log(`帖子已删除`);
+    } else {
+      tools.log(`删除失败: ${delResp.msg || "未知错误"}`);
+    }
+
+    return { ok: false, message: `游戏评价发帖成功(link_id=${linkId})但任务未完成` };
+  }
+
+  return { ok: false, message: `游戏评价发帖失败: ${resp.msg || resp.status}` };
+}
+
 const TASK_HANDLERS = {
   "1": executeSharePost,
   "19": executeShareGameDetail,
   "31": executeShareGameComment,
   "33": executeTimeLimitTask,
+  "24": executeGameReviewTask,
 };
 
-async function executeTask(task, client, fetchSnapshotFn) {
+async function executeTask(task, client, fetchSnapshotFn, account) {
   // 支持所有已实现的任务类型（不限于 isDailyTask）
   const handler = isSignTask(task) ? (t, c) => executeSign(c) : TASK_HANDLERS[task.taskId];
   if (!handler) return { ok: false, unsupported: true, message: `未支持任务 task_id=${task.taskId}` };
   try {
-    return await handler(task, client, fetchSnapshotFn);
+    return await handler(task, client, fetchSnapshotFn, account);
   } catch (error) {
     return { ok: false, message: `${task.title} 请求异常 ${error.message}` };
   }
@@ -386,7 +427,7 @@ async function runAccount(account, runtime) {
     const latestTask = findTaskByKey(snapshot, key);
     if (!latestTask || latestTask.state !== WAITING_STATE) continue;
 
-    const result = await executeTask(latestTask, client, () => fetchSnapshot(client));
+    const result = await executeTask(latestTask, client, () => fetchSnapshot(client), account);
     if (result.unsupported) {
       unsupported.add(latestTask.title || key);
       continue;
