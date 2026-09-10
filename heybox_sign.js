@@ -449,6 +449,10 @@ async function runAccount(account, runtime) {
   account.log(`当前总H币: ${snapshot.coin || "未知"}`);
   if (unsupported.size) account.log(`未支持任务: ${Array.from(unsupported).join(" | ")}`);
   const waiting = snapshot.tasks.filter((task) => isDailyTask(task) && task.state === WAITING_STATE);
+  account.log(
+    `任务汇总: 完成${done.size}个${waiting.length ? `，未完成${waiting.length}个` : ""}，当前H币=${snapshot.coin || "未知"}`,
+    { notify: true },
+  );
   return { ok: waiting.length === 0, doneCount: done.size };
 }
 
@@ -473,6 +477,7 @@ async function run() {
   }
 
   $.log(`\n完成: ${okCount}/${$.userList.length}`);
+  $.notifyStr.push(`每日任务完成: ${okCount}/${$.userList.length}`);
   process.exitCode = okCount === $.userList.length ? 0 : 1;
 }
 

@@ -141,13 +141,18 @@ async function runAccount(account) {
   const targets = await loadTargets(client);
   if (!targets.length) {
     account.log("No claimable coupon found");
+    account.log("领券汇总: 无可领券", { notify: true });
     return;
   }
 
   account.log(`Claim targets: ${targets.map((target) => target.itemId).join(", ")}`);
+  let okCount = 0;
+  let failCount = 0;
   for (const target of targets) {
     const result = await claimWithFreshSession(client, target);
     const ok = result.payload?.status === "ok" && result.payload?.result?.success === 1;
+    if (ok) okCount += 1;
+    else failCount += 1;
     const title = target.name ? ` ${target.name}` : "";
     account.log(`item_id=${target.itemId}${title}: ${ok ? "OK" : "FAIL"} ${result.message}`);
     if (!ok && isLoginRequired(result.message)) {
@@ -156,6 +161,7 @@ async function runAccount(account) {
     }
     if (CONFIG.delayMs > 0) await tools.sleep(CONFIG.delayMs);
   }
+  account.log(`领券汇总: 成功${okCount}张${failCount ? `，失败${failCount}张` : ""}`, { notify: true });
 }
 
 async function run() {

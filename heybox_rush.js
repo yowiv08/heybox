@@ -336,9 +336,10 @@ async function executePlan(accounts, clients, plan, shouldPrint = true) {
       parallel: timing.parallel,
     }),
   })));
-  for (const { account, result } of results) {
+  return results.map(({ account, result }) => {
     account.log(`done: rounds=${result.rounds}, closed=${result.doneCount}/${plan.targets.length}`);
-  }
+    return { account, result };
+  });
 }
 
 async function run() {
@@ -354,13 +355,31 @@ async function run() {
   else if (discovered.length) targets = mergeMetadata(targets, discovered);
   if (!targets.length) {
     $.log("No rush targets found from current coupon list");
+    $.notifyStr.push("未发现可抢券目标");
     return;
   }
   const plans = buildPlans(targets);
   if (!plans.length) throw new Error("No usable rush targets after filtering ended or sold-out coupons");
   $.log(`Loaded ${targets.length} rush target(s), ${plans.length} plan(s).`);
   for (const plan of plans) printPlan(plan);
-  for (const plan of plans) await executePlan(accounts, clients, plan, false);
+  const summaryByAccount = new Map();
+  for (const plan of plans) {
+    const results = await executePlan(accounts, clients, plan, false);
+    for (const { account, result } of results) {
+      const summary = summaryByAccount.get(account) || { closed: 0, total: 0, rounds: 0 };
+      summary.closed += result.doneCount;
+      summary.total += plan.targets.length;
+      summary.rounds += result.rounds;
+      summaryByAccount.set(account, summary);
+    }
+  }
+  for (const [account, summary] of summaryByAccount) {
+    account.log(
+      `抢券汇总: 处理${summary.total}张，成功${summary.closed}张`,
+      { notify: true },
+    );
+  }
+  $.notifyStr.push(`抢券结束: 目标${targets.length}张，计划${plans.length}个`);
 }
 
 exports.run = run;

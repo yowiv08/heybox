@@ -472,7 +472,10 @@ async function runAccount(account, awards) {
     }
   }
 
-  account.log(`抽奖活动处理完成: 跑=${runCount}, 跳过=${skipCount}, 当前完成=${doneCount}/${awards.length}`);
+  account.log(
+    `抽奖活动处理完成: 跑=${runCount}, 跳过=${skipCount}, 当前完成=${doneCount}/${awards.length}`,
+    { notify: true },
+  );
 }
 
 async function run() {
@@ -481,8 +484,10 @@ async function run() {
   const awards = await discoverAwardIds(discoveryClient);
   if (!awards.length) {
     $.log("未发现当前进行中的抽奖活动");
+    $.notifyStr.push("未发现当前进行中的抽奖活动");
     return;
   }
+  $.notifyStr.push(`发现进行中抽奖活动${awards.length}个`);
   $.log(`发现进行中抽奖活动: ${awards.length} 个`);
   for (const award of awards) {
     $.log(`- award_id=${award.awardId} ${award.awardName || ""} ${award.statusMsg || ""}`.trim());
