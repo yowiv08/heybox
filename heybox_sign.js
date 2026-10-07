@@ -25,6 +25,31 @@ const {
 
 exports.name = "小黑盒.每日任务";
 
+/**
+ * 解析服务端下发任务的 maxjia 字段。
+ *
+ * 该字段格式为 heybox://{URL 编码的 JSON}，未编码时与普通 JSON 无异，
+ * 所以统一走 decodeURIComponent + JSON.parse，两种形式都能处理。
+ *
+ * 注意 JSON 的实际结构随 protocol_type 变化，例如：
+ *   openGameDetail   -> { h_src, game_type, app_id, protocol_type, page }
+ *   openRouterPath   -> { need_login, path, params: {...}, protocol_type }
+ *   openHomeTab      -> { tab, protocol_type }
+ * 因此这里返回解析后的【整个对象】，由调用方按需取自己的字段。
+ * 解析失败或字段为空时返回 null。
+ */
+function parseMaxjia(value) {
+  const raw = tools.toText(value);
+  if (!raw) return null;
+  try {
+    const jsonStr = decodeURIComponent(raw.replace(/^heybox:\/\//, ""));
+    const parsed = JSON.parse(jsonStr);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 const WAITING_STATE = "waiting";
 const FINISH_STATE = "finish";
 
