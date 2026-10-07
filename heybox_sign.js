@@ -303,16 +303,13 @@ async function executeShareGameComment(task, client, fetchSnapshotFn) {
 // ========== time_limit 任务：发布内容 ==========
 async function executeTimeLimitTask(task, client, fetchSnapshotFn) {
   // topic_id 在 maxjia 字段中，格式: heybox://{URL编码的JSON}
-  let topicId = null;
-  if (task.maxjia) {
-    try {
-      const jsonStr = decodeURIComponent(task.maxjia.replace(/^heybox:\/\//, ""));
-      const parsed = JSON.parse(jsonStr);
-      topicId = parsed.params?.topic_id;
-    } catch (e) {
-      // 解析失败
-    }
-  }
+  // maxjia 的 JSON 结构随 protocol_type 变化，topic_id 可能位于 params 子对象里，
+  // 也可能直接平铺在顶层，因此两种路径都尝试一次。
+  const maxjia = parseMaxjia(task.maxjia);
+  const topicId =
+    tools.toText(maxjia?.params?.topic_id) ||
+    tools.toText(maxjia?.topic_id) ||
+    null;
 
   if (!topicId) {
     return { ok: false, unsupported: true, message: `${task.title} 缺少 topic_id` };
